@@ -271,17 +271,20 @@ def robust_match(rede: pd.DataFrame, aut: pd.DataFrame) -> pd.DataFrame:
                 best_idx = aut_i
                 best_details = details
 
-        accepted = (
-            best_idx is not None
-            and (
-                best_details["nsu_ok"]
-                or best_details["aut_ok"]
-                or best_details["bru_ok"]
-                or best_details["liq_ok"]
-            )
+        any_exact_match = (
+            best_details["nsu_ok"]
+            or best_details["aut_ok"]
+            or best_details["bru_ok"]
+            or best_details["liq_ok"]
         )
 
-        alerta = "⚠️" if (accepted and not best_details["nsu_ok"] and not best_details["aut_ok"]) else ""
+        accepted = best_idx is not None and any_exact_match
+
+        alerta = "⚠️" if (
+            accepted
+            and not best_details["nsu_ok"]
+            and not best_details["aut_ok"]
+        ) else ""
 
         if accepted:
             used_aut.add(best_idx)
