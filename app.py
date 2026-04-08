@@ -369,16 +369,9 @@ def build_directions(df_found: pd.DataFrame) -> pd.DataFrame:
         diff_bru = row.get("Diferença bruto")
         diff_liq = row.get("Diferença líquido")
 
-        data_rede = pd.to_datetime(row.get("Data REDE"), errors="coerce")
-        data_aut = pd.to_datetime(row.get("Data AUTCOM"), errors="coerce")
-        data_rede_fds = pd.notna(data_rede) and data_rede.weekday() >= 5
-        data_aut_fds = pd.notna(data_aut) and data_aut.weekday() >= 5
-
         if (
             not pd.isna(diff_data)
             and int(diff_data) != 0
-            and not data_rede_fds
-            and not data_aut_fds
         ):
             acoes.append(
                 f"Alterar a data no AUTCOM para ficar igual à REDE: REDE {format_date(row['Data REDE'])} | AUTCOM {format_date(row['Data AUTCOM'])}"
