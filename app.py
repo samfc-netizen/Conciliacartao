@@ -54,7 +54,7 @@ def format_date(v) -> str:
         return str(v)
 
 
-def normalize_id(value) -> str:
+def normalize_nsu(value) -> str:
     if pd.isna(value):
         return ""
     s = str(value).strip()
@@ -67,6 +67,22 @@ def normalize_id(value) -> str:
     except Exception:
         pass
     return "".join(ch for ch in s if ch.isdigit())
+
+
+def normalize_code(value) -> str:
+    if pd.isna(value):
+        return ""
+    s = str(value).strip()
+    if s in {"-", "nan", "None", ""}:
+        return ""
+    s = s.upper().replace(" ", "")
+    try:
+        f = float(str(s).replace(",", "."))
+        if f.is_integer():
+            s = str(int(f))
+    except Exception:
+        pass
+    return s
 
 
 def normalize_number(value) -> Optional[float]:
@@ -126,16 +142,16 @@ def load_excel(file_bytes: bytes) -> Tuple[pd.DataFrame, pd.DataFrame]:
     rede = rede.copy()
     rede["_idx_rede"] = np.arange(len(rede))
     rede["_data_rede"] = rede[COL_REDE_DATA].apply(normalize_date)
-    rede["_nsu"] = rede[COL_REDE_NSU].apply(normalize_id)
-    rede["_autorizacao"] = rede[COL_REDE_AUT].apply(normalize_id)
+    rede["_nsu"] = rede[COL_REDE_NSU].apply(normalize_nsu)
+    rede["_autorizacao"] = rede[COL_REDE_AUT].apply(normalize_code)
     rede["_vlr_bru"] = rede[COL_REDE_BRU].apply(normalize_number)
     rede["_vlr_liq"] = rede[COL_REDE_LIQ].apply(normalize_number)
 
     aut = aut.copy()
     aut["_idx_aut"] = np.arange(len(aut))
     aut["_data_aut"] = aut[COL_AUT_DATA].apply(normalize_date)
-    aut["_nsu"] = aut[COL_AUT_NSU].apply(normalize_id)
-    aut["_autorizacao"] = aut[COL_AUT_AUT].apply(normalize_id)
+    aut["_nsu"] = aut[COL_AUT_NSU].apply(normalize_nsu)
+    aut["_autorizacao"] = aut[COL_AUT_AUT].apply(normalize_code)
     aut["_vlr_bru"] = aut[COL_AUT_BRU].apply(normalize_number)
     aut["_vlr_liq"] = aut[COL_AUT_LIQ].apply(normalize_number)
 
@@ -336,7 +352,7 @@ def robust_match(rede: pd.DataFrame, aut: pd.DataFrame) -> pd.DataFrame:
                     "_idx_rede": rede_row["_idx_rede"],
                     "_idx_aut": np.nan,
                     "Status geral": "❌ Não encontrado",
-                    "Alerta": "⚠️",
+                    "Alerta": "",
                     "NSU encontrado": "❌",
                     "Autorização encontrada": "❌",
                     "Valor bruto encontrado": "❌",
