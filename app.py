@@ -369,33 +369,43 @@ def build_directions(df_found: pd.DataFrame) -> pd.DataFrame:
         diff_bru = row.get("Diferença bruto")
         diff_liq = row.get("Diferença líquido")
 
-        if not pd.isna(diff_data) and int(diff_data) != 0:
+        data_rede = pd.to_datetime(row.get("Data REDE"), errors="coerce")
+        data_aut = pd.to_datetime(row.get("Data AUTCOM"), errors="coerce")
+        data_rede_fds = pd.notna(data_rede) and data_rede.weekday() >= 5
+        data_aut_fds = pd.notna(data_aut) and data_aut.weekday() >= 5
+
+        if (
+            not pd.isna(diff_data)
+            and int(diff_data) != 0
+            and not data_rede_fds
+            and not data_aut_fds
+        ):
             acoes.append(
-                f"Alterar data e informar a data correta: REDE {format_date(row['Data REDE'])} | AUTCOM {format_date(row['Data AUTCOM'])}"
+                f"Alterar a data no AUTCOM para ficar igual à REDE: REDE {format_date(row['Data REDE'])} | AUTCOM {format_date(row['Data AUTCOM'])}"
             )
 
         if not pd.isna(diff_bru) and abs(float(diff_bru)) > 0.01:
             acoes.append(
-                f"Alterar valor bruto: REDE {brl(row['Valor bruto REDE'])} | AUTCOM {brl(row['Valor bruto AUTCOM'])} | Diferença {brl(diff_bru)}"
+                f"Alterar o valor bruto no AUTCOM para ficar igual à REDE: REDE {brl(row['Valor bruto REDE'])} | AUTCOM {brl(row['Valor bruto AUTCOM'])} | Diferença {brl(diff_bru)}"
             )
 
         if not pd.isna(diff_liq) and abs(float(diff_liq)) > 0.01:
             acoes.append(
-                f"Alterar valor líquido: REDE {brl(row['Valor líquido REDE'])} | AUTCOM {brl(row['Valor líquido AUTCOM'])} | Diferença {brl(diff_liq)}"
+                f"Alterar o valor líquido no AUTCOM para ficar igual à REDE: REDE {brl(row['Valor líquido REDE'])} | AUTCOM {brl(row['Valor líquido AUTCOM'])} | Diferença {brl(diff_liq)}"
             )
 
         if acoes:
             rows.append(
                 {
-                    "NSU/CV REDE": row["NSU/CV REDE"],
-                    "NÚM.NSU AUTCOM": row["NÚM.NSU AUTCOM"],
+                    "NSU REDE": row["NSU/CV REDE"],
+                    "NSU AUTCOM": row["NÚM.NSU AUTCOM"],
                     "Autorização REDE": row["Autorização REDE"],
                     "Liberação AUTCOM": row["Liberação AUTCOM"],
                     "Valor bruto REDE": row["Valor bruto REDE"],
                     "Valor bruto AUTCOM": row["Valor bruto AUTCOM"],
                     "Valor líquido REDE": row["Valor líquido REDE"],
                     "Valor líquido AUTCOM": row["Valor líquido AUTCOM"],
-                    "Direcionamento": " | ".join(acoes),
+                    "Direcionamento do que fazer em seguida": " | ".join(acoes),
                 }
             )
 
@@ -677,7 +687,24 @@ def render_conciliacao_page(rede: pd.DataFrame, aut: pd.DataFrame):
 
     found_df = result[result["Status geral"] == "✅ Encontrado"].copy()
 
-    st.subheader("2) Divergências de datas dentro dos encontrados")
+    st.subheader("2) Direcionamento do que precisa ser feito")
+    direcionamento = build_directions(found_df)
+
+    matched_aut_idxs = set(
+        result.loc[result["_idx_aut"].notna(), "_idx_aut"].astype(int).tolist()
+    )
+    aut_not_found = aut_f[~aut_f["_idx_aut"].isin(matched_aut_idxs)].copy()
+
+    if direcionamento.empty:
+        st.success("Nenhum ajuste necessário dentro dos lançamentos encontrados.")
+    else:
+        direcionamento_show = display_money_cols(
+            direcionamento,
+            ["Valor bruto REDE", "Valor bruto AUTCOM", "Valor líquido REDE", "Valor líquido AUTCOM"],
+        )
+        render_df(direcionamento_show)
+
+    st.subheader("3) Divergências de datas dentro dos encontrados")
     div_datas = found_df[
         found_df["Diferença de datas (dias)"].notna() &
         (found_df["Diferença de datas (dias)"] != 0)
@@ -702,7 +729,7 @@ def render_conciliacao_page(rede: pd.DataFrame, aut: pd.DataFrame):
         div_datas_show["Data AUTCOM"] = div_datas_show["Data AUTCOM"].apply(format_date)
         render_df(div_datas_show)
 
-    st.subheader("3) Divergências de valores brutos dentro dos encontrados")
+    st.subheader("4) Divergências de valores brutos dentro dos encontrados")
     div_bru = found_df[
         found_df["Diferença bruto"].notna() &
         (found_df["Diferença bruto"].abs() > 0.01)
@@ -729,7 +756,7 @@ def render_conciliacao_page(rede: pd.DataFrame, aut: pd.DataFrame):
         )
         render_df(div_bru_show)
 
-    st.subheader("4) Divergências de valores líquidos dentro dos encontrados")
+    st.subheader("5) Divergências de valores líquidos dentro dos encontrados")
     div_liq = found_df[
         found_df["Diferença líquido"].notna() &
         (found_df["Diferença líquido"].abs() > 0.01)
@@ -755,19 +782,6 @@ def render_conciliacao_page(rede: pd.DataFrame, aut: pd.DataFrame):
             ["Valor líquido REDE", "Valor líquido AUTCOM", "Diferença líquido"],
         )
         render_df(div_liq_show)
-
-    st.subheader("5) Direcionamento do que precisa ser feito")
-    direcionamento = build_directions(found_df)
-
-    matched_aut_idxs = set(
-        result.loc[result["_idx_aut"].notna(), "_idx_aut"].astype(int).tolist()
-    )
-    aut_not_found = aut_f[~aut_f["_idx_aut"].isin(matched_aut_idxs)].copy()
-
-    if direcionamento.empty:
-        st.success("Nenhum ajuste necessário dentro dos lançamentos encontrados.")
-    else:
-        render_df(direcionamento)
 
     with st.expander("Ver lançamentos da REDE que não foram encontrados no AUTCOM"):
         not_found = result[result["Status geral"] == "❌ Não encontrado"].copy()
